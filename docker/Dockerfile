@@ -1,62 +1,64 @@
-# Part of the implementation of this container is based on the Amazon SageMaker Apache MXNet container.
-# https://github.com/aws/sagemaker-mxnet-container
+#ref: https://docs.aws.amazon.com/sagemaker/latest/dg/adapt-training-container.html
 
-FROM ubuntu:16.04
+FROM python:3.10.6-bullseye
 
-LABEL maintainer="Amazon AI"
+ARG spark_version="3.3.0"
+ARG hadoop_version="3"
+ARG scala_version
+ARG spark_checksum="1e8234d0c1d2ab4462d6b0dfe5b54f2851dcd883378e0ed756140e10adfb5be4123961b521140f580e364c239872ea5a9f813a20b73c69cb6d4e95da2575c29c"
+ARG openjdk_version="17"
 
-# Defining some variables used at build time to install Python3
-ARG PYTHON=python3
-ARG PYTHON_PIP=python3-pip
-ARG PIP=pip3
-ARG PYTHON_VERSION=3.6.6
+ENV APACHE_SPARK_VERSION="${spark_version}" \
+    HADOOP_VERSION="${hadoop_version}"
 
-# Install some handful libraries like curl, wget, git, build-essential, zlib
-RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa -y && \
-    apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        curl \
-        wget \
-        git \
-        libopencv-dev \
-        openssh-client \
-        openssh-server \
-        vim \
-        zlib1g-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        "openjdk-${openjdk_version}-jre-headless" \
+        ca-certificates-java && \
+        apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Installing Python3
-RUN wget https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz && \
-        tar -xvf Python-$PYTHON_VERSION.tgz && cd Python-$PYTHON_VERSION && \
-        ./configure && make && make install && \
-        apt-get update && apt-get install -y --no-install-recommends libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev && \
-        make && make install && rm -rf ../Python-$PYTHON_VERSION* && \
-        ln -s /usr/local/bin/pip3 /usr/bin/pip
+# Spark installation
+WORKDIR /tmp
 
-# Upgrading pip and creating symbolic link for python3
-RUN ${PIP} --no-cache-dir install --upgrade pip
-RUN ln -s $(which ${PYTHON}) /usr/local/bin/python
+RUN if [ -z "${scala_version}" ]; then \
+    wget -qO "spark.tgz" "https://archive.apache.org/dist/spark/spark-${APACHE_SPARK_VERSION}/spark-${APACHE_SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz"; \
+  else \
+    wget -qO "spark.tgz" "https://archive.apache.org/dist/spark/spark-${APACHE_SPARK_VERSION}/spark-${APACHE_SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}-scala${scala_version}.tgz"; \
+  fi && \
+  echo "${spark_checksum} *spark.tgz" | sha512sum -c - && \
+  tar xzf "spark.tgz" -C /usr/local --owner root --group root --no-same-owner && \
+  rm "spark.tgz"
+
+# Configure Spark
+ENV SPARK_HOME=/usr/local/spark
+ENV SPARK_OPTS="--driver-java-options=-Xms1024M --driver-java-options=-Xmx4096M --driver-java-options=-Dlog4j.logLevel=info" \
+    PATH="${PATH}:${SPARK_HOME}/bin"
+
+RUN if [ -z "${scala_version}" ]; then \
+    ln -s "spark-${APACHE_SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}" "${SPARK_HOME}"; \
+  else \
+    ln -s "spark-${APACHE_SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}-scala${scala_version}" "${SPARK_HOME}"; \
+  fi && \
+  # Add a link in the before_notebook hook in order to source automatically PYTHONPATH && \
+  mkdir -p /usr/local/bin/before-notebook.d && \
+  ln -s "${SPARK_HOME}/sbin/spark-config.sh" /usr/local/bin/before-notebook.d/spark-config.sh
+
 
 WORKDIR /
 
 # Installing numpy, pandas, scikit-learn, scipy
-RUN ${PIP} install --no-cache --upgrade \
-        numpy==1.14.5 \
-        pandas==0.24.1 \
-        scikit-learn==0.20.3 \
-        requests==2.21.0 \
-        scipy==1.2.1
+RUN pip install --no-cache --upgrade \
+            numpy \
+            pandas \
+            scikit-learn \
+            hyperopt \
+            mlflow \
+            xgboost \
+            pyarrow \
+            pyspark
 
-# Setting some environment variables.
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/lib" \
-    PYTHONIOENCODING=UTF-8 \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+# Defines train.py as script entrypoint
+ENV SAGEMAKER_PROGRAM train.py
 
-COPY code/* /
+COPY code/* /opt/ml/code/
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "/opt/ml/code/main.py"]

@@ -1,1 +1,3 @@
 *.json
+bash_scripts/
+.ipynb_checkpoints

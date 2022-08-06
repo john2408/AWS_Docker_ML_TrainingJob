@@ -62,12 +62,21 @@ def train():
         # Dummy net.
         net = None
 
+        print("Creating Spark Dataframe...")
+
+        from pyspark.sql import SparkSession
+
+        spark = SparkSession.builder.getOrCreate()
+        df = spark.createDataFrame([{"a": "x", "b": "y", "c": "3"}])
+
+        print(df.show())
+
         # Run training loop.
         epochs = 5
         for x in range(epochs):
             print("\nRunning epoch {0}...".format(x))
 
-            time.sleep(30)
+            time.sleep(1)
 
             if signal_handler.exit_now:
                 print("Received SIGTERM/SIGINT. Saving training state and exiting.")
