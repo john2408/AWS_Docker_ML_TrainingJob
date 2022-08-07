@@ -12,19 +12,27 @@ Steps:
 
 - (1) Configure AWS CLI 
     - Install AWS CLI : https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html 
-    - Configure User: ref: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html
-
-- (2) Create SageMaker Role - run create-sagemaker-role.sh - then attach AmazonSageMakerFullAccess policy to this role on SageMaker UI
+    - Configure User: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html
+- (2) Create SageMaker Role - run scripts/create-sagemaker-role.sh - then attach AmazonSageMakerFullAccess policy to this role on SageMaker UI
 - (3) Create New Container Registry in AWS ECR. 
-    - Sample Name: 
-        $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/sagemaker-training-containers/pyspark-3.3-py3.10
-- (4) Build Docker Image Locally. 
-- (5) Push Image to AWS ECR. 
-- (6) Run Training Job using SageMaker SDK.  
+    - Repo Name Structure: 
+        - REPO_NAME = sagemaker-training-containers/pyspark-ml
+        - $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME
+
+- (4) Then use scripts/buil_and_push.sh, to build, tag and push image to AWS ECR. Pass ACCOUNT_ID, REGION and REPO_NAME as parameters. Remember to add current user to docker group:   
+
+```bash
+sudo groupadd docker
+sudo usermod -aG docker $USER
+```
+
+- (5) Test Training Job using SageMaker SDK via jupyter notebook test_training_job.ipynb
 
 
-If using Amazon pre-built Spark Images:
+If using Amazon pre-built Spark Images, download them from AWS ECR Repositories using script/pull_spark_docker_img_aws.sh. Modify parameters:
 
-- Pull AWS Spark Docker Images:
-    - List of available docker images : https://github.com/aws/sagemaker-spark-container/blob/master/available_images.md
-    - Use script
+- ACCOUNT_ID_SPARK
+- REGION
+- SPARK_IMAGE
+
+Depending on the region and spark version you want to access to. Here a list of available aws spark docker images : https://github.com/aws/sagemaker-spark-container/blob/master/available_images.md

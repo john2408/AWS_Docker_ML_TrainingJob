@@ -54,7 +54,8 @@ RUN pip install --no-cache --upgrade \
             mlflow \
             xgboost \
             pyarrow \
-            pyspark
+            pyspark \
+            mlflow
 
 # Defines train.py as script entrypoint
 ENV SAGEMAKER_PROGRAM train.py
