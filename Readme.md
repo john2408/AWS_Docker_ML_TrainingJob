@@ -1,4 +1,4 @@
-# Training Job on AWS SageMaker with custom Pypsark Docker Container
+# ML Training Job on AWS SageMaker with custom Pypsark Docker Container
 
 ## Setup Configuration using AWS SageMaker Python SDK
 
